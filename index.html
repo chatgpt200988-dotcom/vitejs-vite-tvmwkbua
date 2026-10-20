@@ -1,0 +1,1824 @@
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { initializeApp } from 'firebase/app';
+import { 
+  getAuth, 
+  signInAnonymously, 
+  signInWithCustomToken, 
+  onAuthStateChanged 
+} from 'firebase/auth';
+import { 
+  getFirestore, 
+  collection, 
+  doc, 
+  setDoc, 
+  deleteDoc, 
+  onSnapshot 
+} from 'firebase/firestore';
+import { 
+  BookOpen, 
+  Upload, 
+  Volume2, 
+  CheckCircle2, 
+  XCircle, 
+  RotateCcw, 
+  Plus, 
+  Trash2, 
+  LogOut, 
+  User, 
+  Lock, 
+  Sparkles, 
+  Layers, 
+  Brain, 
+  ChevronRight, 
+  ChevronLeft, 
+  Shuffle, 
+  Edit3, 
+  Save, 
+  FileImage, 
+  Check, 
+  X, 
+  Moon, 
+  Sun, 
+  HelpCircle, 
+  Award, 
+  RefreshCw,
+  Eye,
+  Filter,
+  Search,
+  Cloud,
+  ShieldCheck
+} from 'lucide-react';
+
+// ==========================================
+// 1. إعدادات الاتصال السحابي بـ Firebase
+// ==========================================
+const firebaseConfig = typeof __firebase_config !== 'undefined' 
+  ? JSON.parse(__firebase_config) 
+  : {};
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'vocab-flashcards-cloud';
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+// ==========================================
+// 2. البيانات المدمجة من صورتي الكتاب المرفقتين (72 كلمة كاملة)
+// ==========================================
+const PRESET_DECKS = [
+  {
+    title: "1 - Key Vocabulary (المفردات الرئيسية)",
+    description: "المفردات اللغوية الأساسية موضع الامتحان كما وردت في كتاب الطالب",
+    cards: [
+      { id: "kv-1", english: "administer(ed)", pos: "v", arabic: "يعطي دواء - يدير - ينظم", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "kv-2", english: "attention", pos: "n", arabic: "اهتمام - انتباه", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "kv-3", english: "beep(ed)", pos: "n - v", arabic: "يصفر", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "kv-4", english: "chaos", pos: "n", arabic: "فوضى", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "kv-5", english: "chest", pos: "n", arabic: "صدر", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "kv-6", english: "collapse(d)", pos: "n - v", arabic: "انهيار - ينهار / يتهاوى", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "kv-7", english: "consciousness", pos: "n", arabic: "الوعي - الإدراك", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "kv-8", english: "CPR (Cardiopulmonary Resuscitation)", pos: "n", arabic: "الإنعاش القلبي الرئوي", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "kv-9", english: "emergency", pos: "n", arabic: "(حالة) طوارئ", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "kv-10", english: "grab(bed)", pos: "n - v", arabic: "شدة / جذبة - يمسك بشدة", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "kv-11", english: "heartbreaking", pos: "adj", arabic: "مؤلم - محزن", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "kv-12", english: "kick off", pos: "phr. v", arabic: "يبدأ - يستهل - ينطلق", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "kv-13", english: "medication", pos: "n", arabic: "دواء", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "kv-14", english: "paramedic", pos: "n", arabic: "مسعف", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "kv-15", english: "pulse", pos: "n", arabic: "النبض", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "kv-16", english: "rewarding", pos: "adj", arabic: "مرضي - مجزي", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "kv-17", english: "rollercoaster", pos: "n", arabic: "قطار ملاهي - موقف متأرجح - تقلبات شديدة", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "kv-18", english: "shift", pos: "n", arabic: "دوام (وردية عمل)", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "kv-19", english: "victim", pos: "n", arabic: "ضحية", status: "new", correctCount: 0, wrongCount: 0 }
+    ]
+  },
+  {
+    title: "3 - Accumulative Vocabulary (المفردات المساعدة)",
+    description: "المفردات اللغوية المساعدة في التعامل مع الورقة الامتحانية",
+    cards: [
+      { id: "av-1", english: "anxious", pos: "adj", arabic: "قلق", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "av-2", english: "arise - arose - arisen", pos: "v", arabic: "ينشأ / يظهر", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "av-3", english: "assist(ed)", pos: "v", arabic: "يساعد", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "av-4", english: "attend(ed)", pos: "v", arabic: "يحضر", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "av-5", english: "breath", pos: "n", arabic: "نفس", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "av-6", english: "breathe(d)", pos: "v", arabic: "يتنفس", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "av-7", english: "caring", pos: "adj", arabic: "مهتم / حنون", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "av-8", english: "chart(ed)", pos: "n - v", arabic: "جدول - يخطط / يرسم", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "av-9", english: "collarbone", pos: "n", arabic: "عظمة الترقوة", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "av-10", english: "colleague", pos: "n", arabic: "زميل (عمل)", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "av-11", english: "complain(ed)", pos: "v", arabic: "يشكو", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "av-12", english: "consume(d)", pos: "v", arabic: "يستهلك", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "av-13", english: "contaminated", pos: "adj", arabic: "ملوث", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "av-14", english: "contribute(d)", pos: "v", arabic: "يساهم", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "av-15", english: "differentiate(d)", pos: "v", arabic: "يميز", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "av-16", english: "dizzy", pos: "adj", arabic: "يشعر بالدوار (دائخ)", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "av-17", english: "document(ed)", pos: "v", arabic: "يوثق - وثيقة / مستند", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "av-18", english: "duration", pos: "n", arabic: "مدة", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "av-19", english: "elderly", pos: "adj", arabic: "مسن", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "av-20", english: "emotionally", pos: "adv", arabic: "عاطفياً", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "av-21", english: "emphasis", pos: "n", arabic: "تأكيد", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "av-22", english: "ensure(d)", pos: "v", arabic: "يضمن - يؤكد على", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "av-23", english: "exhausted", pos: "adj", arabic: "مرهق", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "av-24", english: "extract(ed)", pos: "v - n", arabic: "يستخرج - يستخلص - اقتباس", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "av-25", english: "fulfilled", pos: "adj", arabic: "راضٍ / مرتاح", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "av-26", english: "healthcare", pos: "n", arabic: "الرعاية الصحية", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "av-27", english: "include(d)", pos: "v", arabic: "يشمل / يتضمن - يضمن", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "av-28", english: "interprofessional", pos: "adj", arabic: "مشترك بين المهن", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "av-29", english: "introduce(d)", pos: "v", arabic: "يقدم / يدخل", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "av-30", english: "mentally", pos: "adv", arabic: "ذهنياً - عقلياً", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "av-31", english: "monitor(ed)", pos: "n - v", arabic: "جهاز مراقبة - يراقب", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "av-32", english: "nurse(d)", pos: "n - v", arabic: "ممرضة - تمرض", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "av-33", english: "operator", pos: "n", arabic: "موظف التشغيل", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "av-34", english: "progress", pos: "n", arabic: "تقدم", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "av-35", english: "random", pos: "adj", arabic: "عشوائي", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "av-36", english: "recover(ed)", pos: "v", arabic: "يتعافى - يستفيق", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "av-37", english: "reflect(ed)", pos: "v", arabic: "يتفكر / يفكر - يعكس", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "av-38", english: "regain(ed)", pos: "v", arabic: "يستعيد", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "av-39", english: "related", pos: "adj", arabic: "مرتبط", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "av-40", english: "remain(ed)", pos: "v", arabic: "يبقى", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "av-41", english: "rescue(d)", pos: "v", arabic: "ينقذ", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "av-42", english: "run - ran - run", pos: "v", arabic: "يجري - يدير", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "av-43", english: "session", pos: "n", arabic: "جلسة / دورة", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "av-44", english: "setting", pos: "n", arabic: "بيئة / موقع", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "av-45", english: "severe", pos: "adj", arabic: "شديد", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "av-46", english: "sharp", pos: "adj", arabic: "حاد - قاس - لماح", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "av-47", english: "staff", pos: "n", arabic: "طاقم الموظفين", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "av-48", english: "surgery", pos: "n", arabic: "جراحة", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "av-49", english: "temporary", pos: "adj", arabic: "مؤقت - وقتي", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "av-50", english: "treatment", pos: "n", arabic: "علاج - معاملة - معالجة", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "av-51", english: "unconscious", pos: "adj", arabic: "غير واع", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "av-52", english: "visible", pos: "adj", arabic: "مرئي", status: "new", correctCount: 0, wrongCount: 0 },
+      { id: "av-53", english: "witness(ed)", pos: "v", arabic: "يشهد", status: "new", correctCount: 0, wrongCount: 0 }
+    ]
+  }
+];
+
+// ==========================================
+// 3. دوال مساعدة (نطق صوتي + معالجة صور بـ Gemini API)
+// ==========================================
+function cleanEnglishForSpeech(text) {
+  if (!text) return "";
+  // إزالة الزوائد الصرفية بين الأقواس مثل (ed) أو (d) أو (bed) لينطق الكلمة الأساسية بشكل سليم
+  let cleaned = text
+    .replace(/\((ed|d|bed|ing|s|es)\)/gi, "")
+    .replace(/\((n|v|adj|adv|phr\.\s*v|n\s*-\s*v|v\s*-\s*n)\)/gi, "")
+    .trim();
+  return cleaned;
+}
+
+function speakWord(text, rate = 0.9) {
+  if (!('speechSynthesis' in window)) return;
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(cleanEnglishForSpeech(text));
+  utterance.lang = 'en-US';
+  utterance.rate = rate;
+  window.speechSynthesis.speak(utterance);
+}
+
+// دالة استخراج الكلمات من صور الكتب الدراسية عبر Gemini Vision API مع Exponential Backoff
+async function extractWordsFromImageBase64(base64Data, mimeType) {
+  const apiKey = "";
+  const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+
+  const systemPrompt = `أنت خبير دقيق جداً في قراءة واستخراج جداول الكلمات (الإنجليزية والعربية) من صور الكتب الدراسية المصرية (مثل المعاصر و Gem).
+المطلوب:
+1. اقرأ كل الأعمدة الموجودة في الصورة (غالباً الصفحة مقسمة إلى عمودين، كل عمود فيه الكلمة الإنجليزية على اليسار ومعناها بالعربي على اليمين).
+2. استخرج كل كلمة إنجليزية في حقل "english" (شاملاً التصريف مثل administer(ed) أو arise-arose-arisen ولكن افصل رمز نوع الكلمة مثل (v) أو (n) أو (adj) أو (phr. v) وضعه في حقل "pos").
+3. استخرج المعنى العربي الكامل المقابل لها في حقل "arabic" (حتى لو كان المعنى ممتداً على سطرين مثل قطار ملاهي - موقف متأرجح - تقلبات شديدة أو الإنعاش القلبي الرئوي).
+4. لا تترك أي كلمة في الصورة أبداً.`;
+
+  const payload = {
+    contents: [
+      {
+        role: "user",
+        parts: [
+          { text: "استخرج جميع الكلمات الإنجليزية وتصنيفها النحوي ومعانيها بالعربية من صورة الكتاب هذه بدقة 100%:" },
+          {
+            inlineData: {
+              mimeType: mimeType || "image/png",
+              data: base64Data
+            }
+          }
+        ]
+      }
+    ],
+    systemInstruction: {
+      parts: [{ text: systemPrompt }]
+    },
+    generationConfig: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: "OBJECT",
+        properties: {
+          suggestedTitle: { type: "STRING" },
+          words: {
+            type: "ARRAY",
+            items: {
+              type: "OBJECT",
+              properties: {
+                english: { type: "STRING" },
+                pos: { type: "STRING" },
+                arabic: { type: "STRING" }
+              },
+              propertyOrdering: ["english", "pos", "arabic"]
+            }
+          }
+        },
+        propertyOrdering: ["suggestedTitle", "words"]
+      }
+    }
+  };
+
+  let delay = 1000;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const result = await response.json();
+      const rawJson = result?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!rawJson) throw new Error("Empty response");
+      return JSON.parse(rawJson);
+    } catch (err) {
+      if (attempt === 4) throw err;
+      await new Promise(r => setTimeout(r, delay));
+      delay *= 2;
+    }
+  }
+}
+
+// ==========================================
+// 4. المكون الرئيسي للتطبيق
+// ==========================================
+export default function App() {
+  // حالة المصادقة التقنية مع Firebase
+  const [firebaseUser, setFirebaseUser] = useState(null);
+  const [authReady, setAuthReady] = useState(false);
+
+  // بيانات الحسابات السحابية والمستخدم المسجل حالياً
+  const [allAccounts, setAllAccounts] = useState([]);
+  const [currentAccount, setCurrentAccount] = useState(null); // { username, displayName, createdAt }
+  const [authMode, setAuthMode] = useState('login'); // 'login' | 'register'
+  const [usernameInput, setUsernameInput] = useState('');
+  const [passwordInput, setPasswordInput] = useState('');
+  const [displayNameInput, setDisplayNameInput] = useState('');
+  const [authError, setAuthError] = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
+
+  // بيانات المجموعات (Decks) الخاصة بالمستخدم الحالي فقط
+  const [allCloudDecks, setAllCloudDecks] = useState([]);
+  const [activeView, setActiveView] = useState('dashboard'); // 'dashboard' | 'scanner' | 'study' | 'editDeck'
+  const [selectedDeckId, setSelectedDeckId] = useState(null);
+  const [darkMode, setDarkMode] = useState(false);
+  const [toastMessage, setToastMessage] = useState(null);
+  const [showHostingModal, setShowHostingModal] = useState(false);
+
+  // حالة قارئ الصور بالذكاء الاصطناعي (Scanner)
+  const [isScanning, setIsScanning] = useState(false);
+  const [scannedTitle, setScannedTitle] = useState('');
+  const [scannedWords, setScannedWords] = useState([]);
+  const [previewImage, setPreviewImage] = useState(null);
+  const [targetDeckForScan, setTargetDeckForScan] = useState('new'); // 'new' or existing deckId
+  const fileInputRef = useRef(null);
+
+  // حالة جلسة المذاكرة (Method A: 3D Flip Flashcards)
+  const [studyCards, setStudyCards] = useState([]);
+  const [currentCardIndex, setCurrentCardIndex] = useState(0);
+  const [isFlipped, setIsFlipped] = useState(false);
+  const [userPrediction, setUserPrediction] = useState('');
+  const [sessionStats, setSessionStats] = useState({ correct: 0, wrong: 0, wrongCards: [] });
+  const [sessionFinished, setSessionFinished] = useState(false);
+  const [studyFilter, setStudyFilter] = useState('all'); // 'all' | 'wrong' | 'new' | 'mastered'
+  const [autoSpeak, setAutoSpeak] = useState(true);
+
+  // حالة تعديل/عرض مجموعة
+  const [editingDeck, setEditingDeck] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // دالة إظهار إشعارات أنيقة بدلاً من alert
+  const showToast = (msg, type = 'success') => {
+    setToastMessage({ msg, type });
+    setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  // ==========================================
+  // تهيئة Firebase Auth أولاً (RULE 3)
+  // ==========================================
+  useEffect(() => {
+    const initAuth = async () => {
+      try {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await signInAnonymously(auth);
+        }
+      } catch (e) {
+        console.error("Auth initialization error:", e);
+      }
+    };
+    initAuth();
+
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setFirebaseUser(user);
+      setAuthReady(true);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // ==========================================
+  // الاستماع لبيانات السحابة (الحسابات + المجموعات + الجلسة المحفوظة)
+  // ==========================================
+  useEffect(() => {
+    if (!firebaseUser) return;
+
+    // 1. جلب الحسابات المسجلة
+    const accountsRef = collection(db, 'artifacts', appId, 'public', 'data', 'vocab_accounts');
+    const unsubAccounts = onSnapshot(
+      accountsRef,
+      (snapshot) => {
+        const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        setAllAccounts(list);
+      },
+      (err) => console.error("Accounts listener error:", err)
+    );
+
+    // 2. جلب المجموعات السحابية (يتم تصفيتها في الذاكرة للمستخدم الحالي فقط لضمان الخصوصية 100%)
+    const decksRef = collection(db, 'artifacts', appId, 'public', 'data', 'vocab_decks');
+    const unsubDecks = onSnapshot(
+      decksRef,
+      (snapshot) => {
+        const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        setAllCloudDecks(list);
+      },
+      (err) => console.error("Decks listener error:", err)
+    );
+
+    // 3. استرجاع الجلسة النشطة على هذا الجهاز تلقائياً
+    const sessionDocRef = doc(db, 'artifacts', appId, 'users', firebaseUser.uid, 'session', 'current');
+    const unsubSession = onSnapshot(
+      sessionDocRef,
+      (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          if (data && data.username) {
+            setCurrentAccount({
+              username: data.username,
+              displayName: data.displayName || data.username
+            });
+          }
+        }
+      },
+      (err) => console.error("Session listener error:", err)
+    );
+
+    return () => {
+      unsubAccounts();
+      unsubDecks();
+      unsubSession();
+    };
+  }, [firebaseUser]);
+
+  // تصفية المجموعات لتظهر فقط مجموعات الحساب المسجل حالياً (الخصوصية التامة)
+  const myDecks = useMemo(() => {
+    if (!currentAccount) return [];
+    return allCloudDecks
+      .filter(deck => deck.ownerUsername === currentAccount.username)
+      .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  }, [allCloudDecks, currentAccount]);
+
+  const selectedDeck = useMemo(() => {
+    return myDecks.find(d => d.id === selectedDeckId) || null;
+  }, [myDecks, selectedDeckId]);
+
+  // ==========================================
+  // دوال تسجيل الدخول وإنشاء حساب سحابي دائم
+  // ==========================================
+  const handleAuthSubmit = async (e) => {
+    e.preventDefault();
+    if (!firebaseUser) return;
+    setAuthError('');
+
+    const cleanUsername = usernameInput.trim().toLowerCase();
+    const cleanPassword = passwordInput.trim();
+
+    if (!cleanUsername || !cleanPassword) {
+      setAuthError('يرجى إدخال اسم المستخدم وكلمة المرور');
+      return;
+    }
+
+    setAuthLoading(true);
+    try {
+      const existing = allAccounts.find(acc => acc.username === cleanUsername);
+
+      if (authMode === 'register') {
+        if (existing) {
+          setAuthError('اسم المستخدم هذا مسجل بالفعل! اختر اسماً آخر أو سجل الدخول.');
+          setAuthLoading(false);
+          return;
+        }
+        const displayName = displayNameInput.trim() || cleanUsername;
+        const accountDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'vocab_accounts', cleanUsername);
+        await setDoc(accountDocRef, {
+          username: cleanUsername,
+          displayName,
+          password: cleanPassword,
+          createdAt: Date.now()
+        });
+
+        // إضافة مجموعتي الكتاب المرفقتين تلقائياً للحساب الجديد
+        for (let i = 0; i < PRESET_DECKS.length; i++) {
+          const preset = PRESET_DECKS[i];
+          const deckId = `${cleanUsername}_preset_${i + 1}_${Date.now()}`;
+          const deckRef = doc(db, 'artifacts', appId, 'public', 'data', 'vocab_decks', deckId);
+          await setDoc(deckRef, {
+            ownerUsername: cleanUsername,
+            title: preset.title,
+            description: preset.description,
+            cards: preset.cards,
+            createdAt: Date.now() + i
+          });
+        }
+
+        // حفظ الجلسة على هذا الجهاز
+        const sessionRef = doc(db, 'artifacts', appId, 'users', firebaseUser.uid, 'session', 'current');
+        await setDoc(sessionRef, { username: cleanUsername, displayName });
+
+        setCurrentAccount({ username: cleanUsername, displayName });
+        showToast(`مرحباً بك يا ${displayName}! تم إنشاء حسابك السحابي وتحميل كلمات الكتاب.`);
+      } else {
+        // تسجيل الدخول
+        if (!existing || existing.password !== cleanPassword) {
+          setAuthError('اسم المستخدم أو كلمة المرور غير صحيحة');
+          setAuthLoading(false);
+          return;
+        }
+        const sessionRef = doc(db, 'artifacts', appId, 'users', firebaseUser.uid, 'session', 'current');
+        await setDoc(sessionRef, {
+          username: existing.username,
+          displayName: existing.displayName || existing.username
+        });
+
+        setCurrentAccount({
+          username: existing.username,
+          displayName: existing.displayName || existing.username
+        });
+        showToast(`أهلاً بعودتك يا ${existing.displayName || existing.username}!`);
+      }
+    } catch (err) {
+      setAuthError('حدث خطأ أثناء الاتصال بالسحابة، حاول مرة أخرى.');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    if (!firebaseUser) return;
+    try {
+      const sessionRef = doc(db, 'artifacts', appId, 'users', firebaseUser.uid, 'session', 'current');
+      await setDoc(sessionRef, { username: null, displayName: null });
+      setCurrentAccount(null);
+      setActiveView('dashboard');
+      setUsernameInput('');
+      setPasswordInput('');
+      showToast('تم تسجيل الخروج بنجاح');
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleLoadPresetDecks = async () => {
+    if (!firebaseUser || !currentAccount) return;
+    try {
+      for (let i = 0; i < PRESET_DECKS.length; i++) {
+        const preset = PRESET_DECKS[i];
+        const deckId = `${currentAccount.username}_preset_${i + 1}_${Date.now()}`;
+        const deckRef = doc(db, 'artifacts', appId, 'public', 'data', 'vocab_decks', deckId);
+        await setDoc(deckRef, {
+          ownerUsername: currentAccount.username,
+          title: preset.title,
+          description: preset.description,
+          cards: preset.cards,
+          createdAt: Date.now() + i
+        });
+      }
+      showToast('تم تحميل مجموعتي الكتاب (72 كلمة) في حسابك بنجاح! 📚');
+    } catch (err) {
+      showToast('تعذر تحميل المجموعات الجاهزة', 'error');
+    }
+  };
+
+  // ==========================================
+  // دوال قارئ صور الكتب (AI Image Scanner)
+  // ==========================================
+  const processImageFile = async (file) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const dataUrl = e.target.result;
+      setPreviewImage(dataUrl);
+      const base64Data = dataUrl.split(',')[1];
+      const mimeType = file.type || 'image/png';
+
+      setIsScanning(true);
+      try {
+        const extracted = await extractWordsFromImageBase64(base64Data, mimeType);
+        if (extracted && Array.isArray(extracted.words)) {
+          const formattedWords = extracted.words.map((w, idx) => ({
+            id: `scan_${Date.now()}_${idx}`,
+            english: w.english || '',
+            pos: w.pos || '',
+            arabic: w.arabic || '',
+            status: 'new',
+            correctCount: 0,
+            wrongCount: 0
+          }));
+          setScannedWords(prev => [...prev, ...formattedWords]);
+          if (!scannedTitle && extracted.suggestedTitle) {
+            setScannedTitle(extracted.suggestedTitle);
+          } else if (!scannedTitle) {
+            setScannedTitle(`كلمات مصورة - ${new Date().toLocaleDateString('ar-EG')}`);
+          }
+          showToast(`تم استخراج ${formattedWords.length} كلمة من صفحة الكتاب بنجاح! ✨`);
+        }
+      } catch (err) {
+        showToast('تعذر قراءة الصورة، تأكد من وضوح الصفحة وحاول مجدداً.', 'error');
+      } finally {
+        setIsScanning(false);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // دعم لصق الصورة مباشرة بـ Ctrl+V في صفحة الماسح الضوئي
+  useEffect(() => {
+    const handlePaste = (e) => {
+      if (activeView !== 'scanner') return;
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+          const file = items[i].getAsFile();
+          processImageFile(file);
+          break;
+        }
+      }
+    };
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
+  }, [activeView, scannedTitle]);
+
+  const handleSaveScannedDeck = async () => {
+    if (!firebaseUser || !currentAccount) return;
+    const validCards = scannedWords.filter(w => w.english.trim() && w.arabic.trim());
+    if (validCards.length === 0) {
+      showToast('أضف كلمة واحدة على الأقل لحفظ المجموعة', 'error');
+      return;
+    }
+
+    try {
+      if (targetDeckForScan === 'new') {
+        const deckId = `${currentAccount.username}_deck_${Date.now()}`;
+        const deckRef = doc(db, 'artifacts', appId, 'public', 'data', 'vocab_decks', deckId);
+        await setDoc(deckRef, {
+          ownerUsername: currentAccount.username,
+          title: scannedTitle.trim() || `مجموعة جديدة (${validCards.length} كلمة)`,
+          description: `تم استخراجها من صور الكتاب (${validCards.length} بطاقة)`,
+          cards: validCards,
+          createdAt: Date.now()
+        });
+        showToast('تم حفظ المجموعة الجديدة في حسابك السحابي بنجاح! ☁️');
+      } else {
+        const existingDeck = myDecks.find(d => d.id === targetDeckForScan);
+        if (existingDeck) {
+          const updatedCards = [...(existingDeck.cards || []), ...validCards];
+          const deckRef = doc(db, 'artifacts', appId, 'public', 'data', 'vocab_decks', existingDeck.id);
+          await setDoc(deckRef, {
+            ...existingDeck,
+            cards: updatedCards
+          });
+          showToast(`تمت إضافة ${validCards.length} كلمة إلى مجموعة "${existingDeck.title}"!`);
+        }
+      }
+      setScannedWords([]);
+      setScannedTitle('');
+      setPreviewImage(null);
+      setActiveView('dashboard');
+    } catch (err) {
+      showToast('حدث خطأ أثناء الحفظ السحابي', 'error');
+    }
+  };
+
+  // ==========================================
+  // دوال جلسة المذاكرة (Method A: البطاقة المنقلبة)
+  // ==========================================
+  const startStudySession = (deck, filterType = 'all', customCardsList = null) => {
+    let pool = customCardsList || (deck?.cards || []);
+    if (!customCardsList) {
+      if (filterType === 'wrong') {
+        pool = pool.filter(c => c.status === 'wrong');
+      } else if (filterType === 'new') {
+        pool = pool.filter(c => !c.status || c.status === 'new');
+      } else if (filterType === 'mastered') {
+        pool = pool.filter(c => c.status === 'mastered');
+      }
+    }
+
+    if (pool.length === 0) {
+      showToast('لا توجد بطاقات تطابق هذا الفلتر حالياً، سيتم عرض جميع البطاقات.', 'info');
+      pool = deck?.cards || [];
+    }
+
+    setSelectedDeckId(deck.id);
+    setStudyFilter(filterType);
+    setStudyCards([...pool]);
+    setCurrentCardIndex(0);
+    setIsFlipped(false);
+    setUserPrediction('');
+    setSessionStats({ correct: 0, wrong: 0, wrongCards: [] });
+    setSessionFinished(false);
+    setActiveView('study');
+
+    if (autoSpeak && pool[0]) {
+      setTimeout(() => speakWord(pool[0].english), 300);
+    }
+  };
+
+  const shuffleStudyCards = () => {
+    const shuffled = [...studyCards].sort(() => Math.random() - 0.5);
+    setStudyCards(shuffled);
+    setCurrentCardIndex(0);
+    setIsFlipped(false);
+    setUserPrediction('');
+    setSessionStats({ correct: 0, wrong: 0, wrongCards: [] });
+    setSessionFinished(false);
+    if (autoSpeak && shuffled[0]) {
+      speakWord(shuffled[0].english);
+    }
+    showToast('تم خلط البطاقات عشوائياً 🔀');
+  };
+
+  const handleCardAnswer = async (isCorrect) => {
+    const currentCard = studyCards[currentCardIndex];
+    if (!currentCard || !selectedDeck || !firebaseUser) return;
+
+    const newStatus = isCorrect ? 'mastered' : 'wrong';
+
+    // تحديث الإحصائيات داخل الجلسة الحالية
+    setSessionStats(prev => ({
+      correct: isCorrect ? prev.correct + 1 : prev.correct,
+      wrong: !isCorrect ? prev.wrong + 1 : prev.wrong,
+      wrongCards: !isCorrect ? [...prev.wrongCards, { ...currentCard, status: 'wrong' }] : prev.wrongCards
+    }));
+
+    // تحديث حالة البطاقة في السحابة (Firestore) ليتم حفظ تقدم الطالب دائماً
+    const updatedDeckCards = (selectedDeck.cards || []).map(c => {
+      if (c.id === currentCard.id) {
+        return {
+          ...c,
+          status: newStatus,
+          correctCount: (c.correctCount || 0) + (isCorrect ? 1 : 0),
+          wrongCount: (c.wrongCount || 0) + (!isCorrect ? 1 : 0)
+        };
+      }
+      return c;
+    });
+
+    const deckRef = doc(db, 'artifacts', appId, 'public', 'data', 'vocab_decks', selectedDeck.id);
+    setDoc(deckRef, { ...selectedDeck, cards: updatedDeckCards }).catch(console.error);
+
+    // الانتقال للبطاقة التالية أو إنهاء الجلسة
+    if (currentCardIndex + 1 < studyCards.length) {
+      const nextIndex = currentCardIndex + 1;
+      setIsFlipped(false);
+      setUserPrediction('');
+      setTimeout(() => {
+        setCurrentCardIndex(nextIndex);
+        if (autoSpeak && studyCards[nextIndex]) {
+          speakWord(studyCards[nextIndex].english);
+        }
+      }, 180);
+    } else {
+      setSessionFinished(true);
+    }
+  };
+
+  // اختصارات الكيبورد أثناء المذاكرة (المسافة لقلب البطاقة، 1/يمين لصحيح، 2/يسار لخطأ، S للنطق)
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (activeView !== 'study' || sessionFinished) return;
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+        if (e.key === 'Enter' && !isFlipped) {
+          e.preventDefault();
+          setIsFlipped(true);
+        }
+        return;
+      }
+
+      if (e.code === 'Space') {
+        e.preventDefault();
+        setIsFlipped(prev => !prev);
+      } else if ((e.key === '1' || e.key === 'ArrowRight') && isFlipped) {
+        e.preventDefault();
+        handleCardAnswer(true);
+      } else if ((e.key === '2' || e.key === 'ArrowLeft') && isFlipped) {
+        e.preventDefault();
+        handleCardAnswer(false);
+      } else if (e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        const card = studyCards[currentCardIndex];
+        if (card) speakWord(card.english);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeView, sessionFinished, isFlipped, currentCardIndex, studyCards]);
+
+  // حذف مجموعة
+  const handleDeleteDeck = async (deckId) => {
+    if (!firebaseUser) return;
+    try {
+      await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'vocab_decks', deckId));
+      showToast('تم حذف المجموعة من حسابك');
+    } catch (err) {
+      showToast('تعذر حذف المجموعة', 'error');
+    }
+  };
+
+  // حفظ تعديلات مجموعة موجودة
+  const handleSaveEditedDeck = async () => {
+    if (!firebaseUser || !editingDeck) return;
+    try {
+      const cleanCards = editingDeck.cards.filter(c => c.english.trim() && c.arabic.trim());
+      const deckRef = doc(db, 'artifacts', appId, 'public', 'data', 'vocab_decks', editingDeck.id);
+      await setDoc(deckRef, {
+        ...editingDeck,
+        cards: cleanCards
+      });
+      showToast('تم حفظ التعديلات سحابياً بنجاح ✅');
+      setActiveView('dashboard');
+      setEditingDeck(null);
+    } catch (err) {
+      showToast('حدث خطأ أثناء حفظ التعديلات', 'error');
+    }
+  };
+
+  // حساب إحصائيات المستخدم الكلية
+  const totalStats = useMemo(() => {
+    let total = 0;
+    let mastered = 0;
+    let wrong = 0;
+    myDecks.forEach(d => {
+      (d.cards || []).forEach(c => {
+        total++;
+        if (c.status === 'mastered') mastered++;
+        if (c.status === 'wrong') wrong++;
+      });
+    });
+    return { total, mastered, wrong, newCount: total - mastered - wrong };
+  }, [myDecks]);
+
+  // ==========================================
+  // شاشة التحميل الأولي
+  // ==========================================
+  if (!authReady) {
+    return (
+      <div dir="rtl" className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-center p-6 font-sans">
+        <div className="w-16 h-16 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+        <h2 className="text-xl font-bold">جاري الاتصال بالسحابة الدائمة...</h2>
+      </div>
+    );
+  }
+
+  // ==========================================
+  // شاشة تسجيل الدخول وإنشاء الحساب السحابي المستقل
+  // ==========================================
+  if (!currentAccount) {
+    return (
+      <div dir="rtl" className={`min-h-screen flex items-center justify-center p-4 transition-colors ${darkMode ? 'bg-slate-950 text-white' : 'bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-100 text-slate-800'}`}>
+        <div className={`w-full max-w-md rounded-3xl shadow-2xl p-8 border ${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-emerald-100'}`}>
+          <div className="flex flex-col items-center text-center mb-6">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-500 flex items-center justify-center text-white shadow-lg shadow-emerald-500/30 mb-4">
+              <Brain className="w-9 h-9" />
+            </div>
+            <h1 className="text-2xl font-extrabold tracking-tight">منصة الفلاش كارد السحابية</h1>
+            <p className={`text-sm mt-1 ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+              حسابات سحابية دائمة ومستقلة • حوّل صور كتابك إلى بطاقات تفاعلية
+            </p>
+          </div>
+
+          {/* تبويب تسجيل الدخول / حساب جديد */}
+          <div className={`grid grid-cols-2 p-1 rounded-xl mb-6 ${darkMode ? 'bg-slate-800' : 'bg-slate-100'}`}>
+            <button
+              type="button"
+              onClick={() => { setAuthMode('login'); setAuthError(''); }}
+              className={`py-2.5 text-sm font-bold rounded-lg transition-all ${authMode === 'login' ? 'bg-emerald-600 text-white shadow' : 'text-slate-500 hover:text-slate-800'}`}
+            >
+              تسجيل الدخول
+            </button>
+            <button
+              type="button"
+              onClick={() => { setAuthMode('register'); setAuthError(''); }}
+              className={`py-2.5 text-sm font-bold rounded-lg transition-all ${authMode === 'register' ? 'bg-emerald-600 text-white shadow' : 'text-slate-500 hover:text-slate-800'}`}
+            >
+              إنشاء حساب جديد
+            </button>
+          </div>
+
+          {authError && (
+            <div className="mb-4 p-3.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-600 dark:text-red-400 text-sm font-medium flex items-center gap-2">
+              <XCircle className="w-5 h-5 shrink-0" />
+              <span>{authError}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleAuthSubmit} className="space-y-4">
+            {authMode === 'register' && (
+              <div>
+                <label className="block text-xs font-bold mb-1.5 opacity-80">الاسم الظاهر (لك أو لصديقك)</label>
+                <div className="relative">
+                  <User className="w-5 h-5 absolute right-3.5 top-3 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="مثال: أحمد محمد"
+                    value={displayNameInput}
+                    onChange={(e) => setDisplayNameInput(e.target.value)}
+                    className={`w-full pr-11 pl-4 py-2.5 rounded-xl border text-sm focus:ring-2 focus:ring-emerald-500 outline-none ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-200'}`}
+                  />
+                </div>
+              </div>
+            )}
+
+            <div>
+              <label className="block text-xs font-bold mb-1.5 opacity-80">اسم المستخدم (Username)</label>
+              <div className="relative">
+                <User className="w-5 h-5 absolute right-3.5 top-3 text-slate-400" />
+                <input
+                  type="text"
+                  required
+                  placeholder="مثال: ahmed2026"
+                  value={usernameInput}
+                  onChange={(e) => setUsernameInput(e.target.value)}
+                  className={`w-full pr-11 pl-4 py-2.5 rounded-xl border text-sm focus:ring-2 focus:ring-emerald-500 outline-none ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-200'}`}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold mb-1.5 opacity-80">كلمة المرور</label>
+              <div className="relative">
+                <Lock className="w-5 h-5 absolute right-3.5 top-3 text-slate-400" />
+                <input
+                  type="password"
+                  required
+                  placeholder="••••••••"
+                  value={passwordInput}
+                  onChange={(e) => setPasswordInput(e.target.value)}
+                  className={`w-full pr-11 pl-4 py-2.5 rounded-xl border text-sm focus:ring-2 focus:ring-emerald-500 outline-none ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-200'}`}
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={authLoading}
+              className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold shadow-lg shadow-emerald-600/25 transition-all flex items-center justify-center gap-2"
+            >
+              {authLoading ? (
+                <RefreshCw className="w-5 h-5 animate-spin" />
+              ) : (
+                <>
+                  <Cloud className="w-5 h-5" />
+                  <span>{authMode === 'login' ? 'دخول إلى حسابي السحابي' : 'إنشاء الحساب وتجهيز كلمات الكتاب'}</span>
+                </>
+              )}
+            </button>
+          </form>
+
+          <div className={`mt-6 pt-5 border-t text-xs space-y-2 ${darkMode ? 'border-slate-800 text-slate-400' : 'border-slate-100 text-slate-500'}`}>
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0" />
+              <span>خصوصية تامة: بطاقاتك وصورك خاصة بحسابك وحدك ولا تظهر لأصدقائك.</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-teal-500 shrink-0" />
+              <span>مُدمج به تلقائياً الـ 72 كلمة من صورتي كتابك للتجربة الفورية!</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const currentStudyCard = studyCards[currentCardIndex];
+
+  // ==========================================
+  // الواجهة الرئيسية بعد تسجيل الدخول
+  // ==========================================
+  return (
+    <div dir="rtl" className={`min-h-screen transition-colors ${darkMode ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-800'}`}>
+      {/* ستايل خاص بحركة قلب البطاقة ثلاثية الأبعاد (3D Flip) */}
+      <style>{`
+        .perspective-1000 { perspective: 1200px; }
+        .transform-style-3d { transform-style: preserve-3d; }
+        .backface-hidden { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+        .rotate-y-180 { transform: rotateY(180deg); }
+      `}</style>
+
+      {/* إشعار عائم (Toast) */}
+      {toastMessage && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-2xl shadow-xl bg-slate-900 text-white border border-slate-700 flex items-center gap-2.5 animate-bounce">
+          <Sparkles className="w-5 h-5 text-emerald-400" />
+          <span className="text-sm font-bold">{toastMessage.msg}</span>
+        </div>
+      )}
+
+      {/* شريط التنقل العلوي */}
+      <header className={`sticky top-0 z-30 border-b backdrop-blur-md ${darkMode ? 'bg-slate-900/90 border-slate-800' : 'bg-white/90 border-slate-200'}`}>
+        <div className="max-w-6xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+          <div 
+            onClick={() => setActiveView('dashboard')}
+            className="flex items-center gap-3 cursor-pointer"
+          >
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 flex items-center justify-center text-white shadow-md">
+              <Brain className="w-6 h-6" />
+            </div>
+            <div>
+              <h1 className="font-extrabold text-lg leading-tight">فلاش كارد الكلمات السحابي</h1>
+              <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-semibold">
+                <Cloud className="w-3.5 h-3.5" />
+                <span>حساب: {currentAccount.displayName} (خاص وآمن)</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setActiveView('dashboard')}
+              className={`px-3.5 py-2 rounded-xl text-sm font-bold flex items-center gap-1.5 transition-all ${activeView === 'dashboard' ? 'bg-emerald-600 text-white shadow' : 'hover:bg-slate-200/60 dark:hover:bg-slate-800'}`}
+            >
+              <Layers className="w-4 h-4" />
+              <span>مجموعاتي</span>
+            </button>
+
+            <button
+              onClick={() => setActiveView('scanner')}
+              className={`px-3.5 py-2 rounded-xl text-sm font-bold flex items-center gap-1.5 transition-all ${activeView === 'scanner' ? 'bg-emerald-600 text-white shadow' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20'}`}
+            >
+              <Upload className="w-4 h-4" />
+              <span>تصوير صفحة كتاب (AI)</span>
+            </button>
+
+            <button
+              onClick={() => setShowHostingModal(true)}
+              className={`p-2 rounded-xl border text-xs font-bold flex items-center gap-1 ${darkMode ? 'border-slate-700 hover:bg-slate-800 text-slate-300' : 'border-slate-200 hover:bg-slate-100 text-slate-600'}`}
+              title="كيف تفتحه من أي هاتف أو حاسوب؟"
+            >
+              <HelpCircle className="w-4 h-4 text-teal-500" />
+              <span className="hidden sm:inline">رابط دائم</span>
+            </button>
+
+            <button
+              onClick={() => setDarkMode(!darkMode)}
+              className={`p-2 rounded-xl border ${darkMode ? 'border-slate-700 bg-slate-800 text-amber-400' : 'border-slate-200 bg-slate-100 text-slate-600'}`}
+              title="الوضع الليلي / النهاري"
+            >
+              {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </button>
+
+            <button
+              onClick={handleLogout}
+              className="p-2 rounded-xl border border-red-500/20 bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-all"
+              title="تسجيل الخروج"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* المحتوى الرئيسي */}
+      <main className="max-w-6xl mx-auto px-4 py-6">
+        
+        {/* ==========================================
+            1. لوحة التحكم والمجموعات (Dashboard)
+           ========================================== */}
+        {activeView === 'dashboard' && (
+          <div className="space-y-6">
+            {/* شريط الإحصائيات السريعة */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className={`p-4 rounded-2xl border ${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
+                <div className="text-xs font-bold text-slate-400">إجمالي الكلمات بحسابك</div>
+                <div className="text-2xl font-black mt-1">{totalStats.total}</div>
+              </div>
+              <div className={`p-4 rounded-2xl border ${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
+                <div className="text-xs font-bold text-emerald-500">كلمات أتقنتها ✅</div>
+                <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">{totalStats.mastered}</div>
+              </div>
+              <div className={`p-4 rounded-2xl border ${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
+                <div className="text-xs font-bold text-rose-500">تحتاج مراجعة ❌</div>
+                <div className="text-2xl font-black text-rose-600 dark:text-rose-400 mt-1">{totalStats.wrong}</div>
+              </div>
+              <div className={`p-4 rounded-2xl border ${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
+                <div className="text-xs font-bold text-amber-500">كلمات جديدة ⭐</div>
+                <div className="text-2xl font-black text-amber-600 dark:text-amber-400 mt-1">{totalStats.newCount}</div>
+              </div>
+            </div>
+
+            {/* بانر رفع صورة كتاب جديدة */}
+            <div className="p-6 rounded-3xl bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-700 text-white shadow-xl flex flex-col md:flex-row items-center justify-between gap-6">
+              <div className="space-y-2 text-center md:text-right">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/20 text-xs font-bold backdrop-blur-sm">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>قارئ الكتب الدراسية الذكي (Key & Accumulative Vocabulary)</span>
+                </div>
+                <h2 className="text-2xl font-black">ارفع صورة أي صفحة من كتابك وسيحولها إلى فلاش كارد فوراً!</h2>
+                <p className="text-emerald-100 text-sm max-w-xl">
+                  يتعرف تلقائياً على الكلمات الإنجليزية، وتصنيفها <span dir="ltr" className="font-mono bg-black/20 px-1.5 py-0.5 rounded">(v / n / adj)</span>، ومعانيها بالعربي حتى لو كانت في عمودين أو على سطرين.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-3 shrink-0">
+                <button
+                  onClick={() => setActiveView('scanner')}
+                  className="px-6 py-3.5 rounded-2xl bg-white text-emerald-800 hover:bg-emerald-50 font-extrabold shadow-lg flex items-center gap-2 transition-transform active:scale-95"
+                >
+                  <Upload className="w-5 h-5" />
+                  <span>رفع صورة كتاب الآن</span>
+                </button>
+                {myDecks.length === 0 && (
+                  <button
+                    onClick={handleLoadPresetDecks}
+                    className="px-4 py-3.5 rounded-2xl bg-emerald-900/50 hover:bg-emerald-900/70 text-white font-bold border border-white/20 flex items-center gap-2"
+                  >
+                    <BookOpen className="w-5 h-5" />
+                    <span>تحميل كلمات الصورتين المرفقتين (72 كلمة)</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* قائمة مجموعات الكلمات الخاصة بالمستخدم */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-extrabold flex items-center gap-2">
+                  <BookOpen className="w-5 h-5 text-emerald-500" />
+                  <span>مجموعات الكلمات الخاصة بك ({myDecks.length})</span>
+                </h3>
+              </div>
+
+              {myDecks.length === 0 ? (
+                <div className={`p-12 rounded-3xl border-2 border-dashed text-center space-y-4 ${darkMode ? 'border-slate-800 bg-slate-900/40' : 'border-slate-200 bg-white'}`}>
+                  <FileImage className="w-14 h-14 mx-auto text-emerald-500 opacity-80" />
+                  <h4 className="text-lg font-bold">لا توجد مجموعات في حسابك حتى الآن</h4>
+                  <p className="text-sm text-slate-400 max-w-md mx-auto">
+                    يمكنك رفع صورة أي صفحة من كتابك الآن، أو الضغط على الزر أدناه لتحميل الـ 72 كلمة المستخرجة من الصورتين اللتين أرفقتهما.
+                  </p>
+                  <div className="flex justify-center gap-3 pt-2">
+                    <button
+                      onClick={handleLoadPresetDecks}
+                      className="px-5 py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-sm hover:bg-emerald-500"
+                    >
+                      تحميل مجموعتي الكتاب المرفقتين (72 كلمة)
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  {myDecks.map(deck => {
+                    const cards = deck.cards || [];
+                    const masteredCount = cards.filter(c => c.status === 'mastered').length;
+                    const wrongCount = cards.filter(c => c.status === 'wrong').length;
+                    const progressPercent = cards.length > 0 ? Math.round((masteredCount / cards.length) * 100) : 0;
+
+                    return (
+                      <div
+                        key={deck.id}
+                        className={`rounded-3xl border p-6 flex flex-col justify-between transition-all hover:shadow-lg ${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}
+                      >
+                        <div>
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <h4 className="font-extrabold text-lg">{deck.title}</h4>
+                              <p className="text-xs text-slate-400 mt-0.5">{deck.description || `${cards.length} بطاقة`}</p>
+                            </div>
+                            <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shrink-0">
+                              {cards.length} كلمة
+                            </span>
+                          </div>
+
+                          {/* شريط نسبة الحفظ */}
+                          <div className="mt-5 space-y-1.5">
+                            <div className="flex justify-between text-xs font-bold">
+                              <span className="text-emerald-500">تم حفظ: {masteredCount} ✅</span>
+                              <span className="text-rose-500">أخطاء للمراجعة: {wrongCount} ❌</span>
+                              <span>الإتقان: {progressPercent}%</span>
+                            </div>
+                            <div className={`w-full h-2.5 rounded-full overflow-hidden ${darkMode ? 'bg-slate-800' : 'bg-slate-100'}`}>
+                              <div
+                                className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all duration-500"
+                                style={{ width: `${progressPercent}%` }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* أزرار المذاكرة والتحكم */}
+                        <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <button
+                              onClick={() => startStudySession(deck, 'all')}
+                              className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm shadow-md shadow-emerald-600/20 flex items-center gap-1.5"
+                            >
+                              <Brain className="w-4 h-4" />
+                              <span>ابدأ الاختبار ({cards.length})</span>
+                            </button>
+
+                            {wrongCount > 0 && (
+                              <button
+                                onClick={() => startStudySession(deck, 'wrong')}
+                                className="px-3.5 py-2.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 font-bold text-xs flex items-center gap-1"
+                              >
+                                <RotateCcw className="w-3.5 h-3.5" />
+                                <span>مراجعة الأخطاء ({wrongCount})</span>
+                              </button>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => {
+                                setEditingDeck(JSON.parse(JSON.stringify(deck)));
+                                setActiveView('editDeck');
+                              }}
+                              className={`p-2 rounded-xl border ${darkMode ? 'border-slate-700 hover:bg-slate-800 text-slate-300' : 'border-slate-200 hover:bg-slate-100 text-slate-600'}`}
+                              title="عرض وتعديل الكلمات"
+                            >
+                              <Edit3 className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteDeck(deck.id)}
+                              className="p-2 rounded-xl border border-rose-500/20 hover:bg-rose-500/10 text-rose-500"
+                              title="حذف المجموعة"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ==========================================
+            2. الماسح الضوئي لصور الكتب بالذكاء الاصطناعي (AI Scanner)
+           ========================================== */}
+        {activeView === 'scanner' && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-black flex items-center gap-2">
+                  <Sparkles className="w-6 h-6 text-emerald-500" />
+                  <span>قارئ صور الكتب الدراسية بالذكاء الاصطناعي</span>
+                </h2>
+                <p className="text-sm text-slate-400 mt-1">
+                  ارفع لقطة شاشة أو صورة لجدول الكلمات (أو اضغط <kbd className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-xs font-mono">Ctrl + V</kbd> للصق الصورة مباشرة)
+                </p>
+              </div>
+              <button
+                onClick={() => setActiveView('dashboard')}
+                className="px-4 py-2 rounded-xl border text-sm font-bold hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                العودة لمجموعاتي
+              </button>
+            </div>
+
+            {/* منطقة رفع أو لصق صورة الكتاب */}
+            <div
+              onClick={() => !isScanning && fileInputRef.current?.click()}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                if (e.dataTransfer.files?.[0]) processImageFile(e.dataTransfer.files[0]);
+              }}
+              className={`p-8 rounded-3xl border-2 border-dashed text-center cursor-pointer transition-all ${
+                isScanning 
+                  ? 'border-emerald-500 bg-emerald-500/5' 
+                  : darkMode 
+                    ? 'border-slate-700 hover:border-emerald-500 bg-slate-900/50' 
+                    : 'border-emerald-300 hover:border-emerald-500 bg-emerald-50/40'
+              }`}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  if (e.target.files?.[0]) processImageFile(e.target.files[0]);
+                }}
+              />
+
+              {isScanning ? (
+                <div className="py-8 space-y-4">
+                  <div className="w-14 h-14 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto" />
+                  <h3 className="text-lg font-extrabold text-emerald-500">
+                    جاري قراءة صفحة الكتاب واستخراج الكلمات الإنجليزية ومعانيها بالعربي...
+                  </h3>
+                  <p className="text-xs text-slate-400">يتم الآن فحص الأعمدة والسطور بدقة عالية</p>
+                </div>
+              ) : (
+                <div className="space-y-3 py-4">
+                  <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center mx-auto">
+                    <Upload className="w-8 h-8" />
+                  </div>
+                  <h3 className="text-lg font-extrabold">اضغط هنا لاختيار صورة من جهازك أو اسحب الصورة إلى هنا</h3>
+                  <p className="text-xs text-slate-400">
+                    يمكنك أيضاً أخذ لقطة شاشة (Screenshot) لصفحة الكتاب والضغط على <span className="font-bold text-emerald-500">Ctrl + V</span> مباشرة!
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* جدول معاينة وتعديل الكلمات المستخرجة قبل الحفظ */}
+            {scannedWords.length > 0 && (
+              <div className={`p-6 rounded-3xl border space-y-5 ${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold mb-1.5 opacity-80">حفظ الكلمات في:</label>
+                    <select
+                      value={targetDeckForScan}
+                      onChange={(e) => setTargetDeckForScan(e.target.value)}
+                      className={`w-full px-4 py-2.5 rounded-xl border text-sm font-bold outline-none ${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-slate-50 border-slate-200'}`}
+                    >
+                      <option value="new">+ إنشاء مجموعة (Deck) جديدة</option>
+                      {myDecks.map(d => (
+                        <option key={d.id} value={d.id}>إضافة إلى مجموعة: {d.title}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {targetDeckForScan === 'new' && (
+                    <div>
+                      <label className="block text-xs font-bold mb-1.5 opacity-80">اسم المجموعة الجديدة:</label>
+                      <input
+                        type="text"
+                        value={scannedTitle}
+                        onChange={(e) => setScannedTitle(e.target.value)}
+                        placeholder="مثال: Unit 1 - Key Vocabulary"
+                        className={`w-full px-4 py-2.5 rounded-xl border text-sm font-bold outline-none ${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-slate-50 border-slate-200'}`}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between pt-2">
+                  <h4 className="font-extrabold text-sm">
+                    الكلمات المستخرجة ({scannedWords.length} كلمة) — يمكنك مراجعتها أو التعديل عليها:
+                  </h4>
+                  <button
+                    onClick={() =>
+                      setScannedWords(prev => [
+                        ...prev,
+                        { id: `manual_${Date.now()}`, english: '', pos: 'n', arabic: '', status: 'new', correctCount: 0, wrongCount: 0 }
+                      ])
+                    }
+                    className="px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-500 text-xs font-bold flex items-center gap-1"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>إضافة سطر يدوي</span>
+                  </button>
+                </div>
+
+                <div className="max-h-96 overflow-y-auto space-y-2 pr-1">
+                  {scannedWords.map((item, index) => (
+                    <div key={item.id} className="grid grid-cols-12 gap-2 items-center">
+                      <input
+                        dir="ltr"
+                        type="text"
+                        placeholder="English word"
+                        value={item.english}
+                        onChange={(e) => {
+                          const copy = [...scannedWords];
+                          copy[index].english = e.target.value;
+                          setScannedWords(copy);
+                        }}
+                        className={`col-span-5 px-3 py-2 rounded-xl border text-sm font-semibold ${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-slate-50 border-slate-200'}`}
+                      />
+                      <input
+                        dir="ltr"
+                        type="text"
+                        placeholder="v / n / adj"
+                        value={item.pos}
+                        onChange={(e) => {
+                          const copy = [...scannedWords];
+                          copy[index].pos = e.target.value;
+                          setScannedWords(copy);
+                        }}
+                        className={`col-span-2 px-2 py-2 rounded-xl border text-xs text-center font-mono ${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-slate-50 border-slate-200'}`}
+                      />
+                      <input
+                        dir="rtl"
+                        type="text"
+                        placeholder="المعنى بالعربي"
+                        value={item.arabic}
+                        onChange={(e) => {
+                          const copy = [...scannedWords];
+                          copy[index].arabic = e.target.value;
+                          setScannedWords(copy);
+                        }}
+                        className={`col-span-4 px-3 py-2 rounded-xl border text-sm font-bold ${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-slate-50 border-slate-200'}`}
+                      />
+                      <button
+                        onClick={() => setScannedWords(scannedWords.filter((_, i) => i !== index))}
+                        className="col-span-1 p-2 text-rose-500 hover:bg-rose-500/10 rounded-lg flex justify-center"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="pt-4 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-3">
+                  <button
+                    onClick={() => { setScannedWords([]); setPreviewImage(null); }}
+                    className="px-5 py-2.5 rounded-xl border text-sm font-bold"
+                  >
+                    مسح الكل
+                  </button>
+                  <button
+                    onClick={handleSaveScannedDeck}
+                    className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-sm shadow-lg shadow-emerald-600/20 flex items-center gap-2"
+                  >
+                    <Save className="w-4 h-4" />
+                    <span>حفظ البطاقات في حسابي السحابي ({scannedWords.length})</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ==========================================
+            3. وضع المذاكرة بالطريقة (أ): الفلاش كارد المنقلبة (3D Flip Flashcard)
+           ========================================== */}
+        {activeView === 'study' && selectedDeck && (
+          <div className="max-w-2xl mx-auto space-y-6">
+            {/* رأس جلسة المذاكرة */}
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <button
+                  onClick={() => setActiveView('dashboard')}
+                  className="text-xs font-bold text-emerald-500 hover:underline flex items-center gap-1 mb-1"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                  <span>العودة إلى مجموعاتي</span>
+                </button>
+                <h2 className="text-xl font-black">{selectedDeck.title}</h2>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setAutoSpeak(!autoSpeak)}
+                  className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 ${
+                    autoSpeak 
+                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-500' 
+                      : 'border-slate-300 dark:border-slate-700 text-slate-400'
+                  }`}
+                >
+                  <Volume2 className="w-4 h-4" />
+                  <span>نطق تلقائي: {autoSpeak ? 'مفعّل' : 'متوقف'}</span>
+                </button>
+
+                <button
+                  onClick={shuffleStudyCards}
+                  className={`p-2 rounded-xl border ${darkMode ? 'border-slate-700 hover:bg-slate-800' : 'border-slate-200 hover:bg-white'}`}
+                  title="خلط البطاقات عشوائياً"
+                >
+                  <Shuffle className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* فلاتر سريعة للبطاقات */}
+            <div className="flex flex-wrap items-center gap-2">
+              {[
+                { id: 'all', label: `كل البطاقات (${selectedDeck.cards?.length || 0})` },
+                { id: 'wrong', label: `أخطائي فقط ❌ (${(selectedDeck.cards || []).filter(c => c.status === 'wrong').length})` },
+                { id: 'new', label: `لم تُذاكر بعد ⭐ (${(selectedDeck.cards || []).filter(c => !c.status || c.status === 'new').length})` },
+                { id: 'mastered', label: `المتقنة ✅ (${(selectedDeck.cards || []).filter(c => c.status === 'mastered').length})` }
+              ].map(f => (
+                <button
+                  key={f.id}
+                  onClick={() => startStudySession(selectedDeck, f.id)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                    studyFilter === f.id
+                      ? 'bg-emerald-600 text-white shadow'
+                      : darkMode
+                        ? 'bg-slate-900 border border-slate-800 text-slate-400'
+                        : 'bg-white border border-slate-200 text-slate-600'
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+
+            {/* شريط التقدم والنتيجة اللحظية */}
+            {!sessionFinished && studyCards.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs font-extrabold">
+                  <span>البطاقة {currentCardIndex + 1} من {studyCards.length}</span>
+                  <div className="flex items-center gap-4">
+                    <span className="text-emerald-500">توقع صحيح: {sessionStats.correct} ✅</span>
+                    <span className="text-rose-500">توقع خاطئ: {sessionStats.wrong} ❌</span>
+                  </div>
+                </div>
+                <div className={`w-full h-2.5 rounded-full overflow-hidden ${darkMode ? 'bg-slate-800' : 'bg-slate-200'}`}>
+                  <div
+                    className="h-full bg-emerald-500 transition-all duration-300"
+                    style={{ width: `${((currentCardIndex + 1) / studyCards.length) * 100}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* البطاقة التفاعلية ثلاثية الأبعاد (الطريقة أ) */}
+            {!sessionFinished && currentStudyCard ? (
+              <div className="space-y-5">
+                <div 
+                  onClick={() => setIsFlipped(!isFlipped)}
+                  className="perspective-1000 w-full h-80 sm:h-96 cursor-pointer select-none"
+                >
+                  <div className={`relative w-full h-full duration-500 transform-style-3d transition-transform ${isFlipped ? 'rotate-y-180' : ''}`}>
+                    
+                    {/* الوجه الأمامي: الكلمة الإنجليزية وتوقع المعنى */}
+                    <div className={`absolute inset-0 w-full h-full rounded-3xl border-2 p-6 sm:p-8 flex flex-col justify-between backface-hidden shadow-xl ${
+                      darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-emerald-100'
+                    }`}>
+                      <div className="flex items-center justify-between">
+                        <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-500">
+                          الوجه الأمامي • توقّع المعنى بالعربي
+                        </span>
+                        <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            onClick={() => speakWord(currentStudyCard.english, 0.95)}
+                            className="p-2.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 transition-all"
+                            title="نطق الكلمة"
+                          >
+                            <Volume2 className="w-5 h-5" />
+                          </button>
+                          <button
+                            onClick={() => speakWord(currentStudyCard.english, 0.6)}
+                            className="px-2.5 py-2 rounded-xl bg-slate-500/10 hover:bg-slate-500/20 text-xs font-bold"
+                            title="نطق بطيء"
+                          >
+                            🐢 بطيء
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* الكلمة الإنجليزية في المنتصف */}
+                      <div className="text-center my-auto space-y-3" dir="ltr">
+                        <h3 className="text-3xl sm:text-5xl font-black tracking-wide text-emerald-600 dark:text-emerald-400">
+                          {currentStudyCard.english}
+                        </h3>
+                        {currentStudyCard.pos && (
+                          <span className="inline-block px-3.5 py-1 rounded-full text-sm font-mono font-bold bg-slate-500/10 text-slate-500 dark:text-slate-300">
+                            ({currentStudyCard.pos})
+                          </span>
+                        )}
+                      </div>
+
+                      {/* خانة اختيارية لكتابة التوقع قبل قلب البطاقة */}
+                      <div className="space-y-3" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="text"
+                          dir="rtl"
+                          value={userPrediction}
+                          onChange={(e) => setUserPrediction(e.target.value)}
+                          placeholder="اكتب توقعك للمعنى هنا (أو توقعه في ذهنك ثم اقلب البطاقة)..."
+                          className={`w-full px-4 py-2.5 rounded-xl border text-sm text-center font-bold outline-none focus:ring-2 focus:ring-emerald-500 ${
+                            darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-200'
+                          }`}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setIsFlipped(true)}
+                          className="w-full py-2.5 rounded-xl bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-600 dark:text-emerald-400 font-extrabold text-sm flex items-center justify-center gap-2"
+                        >
+                          <Eye className="w-4 h-4" />
+                          <span>اضغط على البطاقة أو المسافة (Space) لكشف المعنى بالعربي 🔄</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* الوجه الخلفي: المعنى العربي وتقييم التوقع */}
+                    <div className={`absolute inset-0 w-full h-full rounded-3xl border-2 p-6 sm:p-8 flex flex-col justify-between backface-hidden rotate-y-180 shadow-xl ${
+                      darkMode ? 'bg-slate-900 border-emerald-500/40' : 'bg-gradient-to-b from-white to-emerald-50/40 border-emerald-300'
+                    }`}>
+                      <div className="flex items-center justify-between">
+                        <span className="px-3 py-1 rounded-full text-xs font-bold bg-teal-500/10 text-teal-500">
+                          الوجه الخلفي • المعنى الصحيح بالعربي
+                        </span>
+                        <span dir="ltr" className="text-sm font-bold text-slate-400">
+                          {currentStudyCard.english} {currentStudyCard.pos ? `(${currentStudyCard.pos})` : ''}
+                        </span>
+                      </div>
+
+                      <div className="text-center my-auto space-y-4">
+                        <div className="text-2xl sm:text-4xl font-black leading-relaxed text-slate-800 dark:text-white">
+                          {currentStudyCard.arabic}
+                        </div>
+
+                        {userPrediction.trim() && (
+                          <div className="inline-block px-4 py-1.5 rounded-xl bg-slate-500/10 text-xs font-bold">
+                            توقعك المكتوب: <span className="text-emerald-500">{userPrediction}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="text-center text-xs font-bold text-slate-400">
+                        هل كان توقعك للمعنى صحيحاً أم خاطئاً؟
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+
+                {/* أزرار التقييم (تظهر بوضوح عند قلب البطاقة) */}
+                {isFlipped ? (
+                  <div className="grid grid-cols-2 gap-4 animate-fadeIn">
+                    <button
+                      onClick={() => handleCardAnswer(true)}
+                      className="py-4 px-5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-base shadow-lg shadow-emerald-600/25 flex items-center justify-center gap-2 transition-transform active:scale-95"
+                    >
+                      <CheckCircle2 className="w-6 h-6" />
+                      <span>توقعي صحيح ✅ (حفظتها)</span>
+                    </button>
+
+                    <button
+                      onClick={() => handleCardAnswer(false)}
+                      className="py-4 px-5 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-black text-base shadow-lg shadow-rose-600/25 flex items-center justify-center gap-2 transition-transform active:scale-95"
+                    >
+                      <XCircle className="w-6 h-6" />
+                      <span>توقعي خاطئ ❌ (أحتاج مراجعتها)</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between pt-2">
+                    <button
+                      disabled={currentCardIndex === 0}
+                      onClick={() => {
+                        setIsFlipped(false);
+                        setCurrentCardIndex(prev => Math.max(0, prev - 1));
+                      }}
+                      className="px-4 py-2 rounded-xl border text-xs font-bold disabled:opacity-40 flex items-center gap-1"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                      <span>السابقة</span>
+                    </button>
+                    <span className="text-xs text-slate-400 font-semibold">
+                      اختصارات الكيبورد: [Space] قلب البطاقة • [S] نطق الكلمة
+                    </span>
+                    <button
+                      disabled={currentCardIndex === studyCards.length - 1}
+                      onClick={() => {
+                        setIsFlipped(false);
+                        setCurrentCardIndex(prev => Math.min(studyCards.length - 1, prev + 1));
+                      }}
+                      className="px-4 py-2 rounded-xl border text-xs font-bold disabled:opacity-40 flex items-center gap-1"
+                    >
+                      <span>التالية</span>
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* شاشة انتهاء جلسة المذاكرة */
+              <div className={`p-8 rounded-3xl border text-center space-y-6 ${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-lg'}`}>
+                <div className="w-20 h-20 rounded-3xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center mx-auto">
+                  <Award className="w-12 h-12" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-2xl font-black">أحسنت! أنهيت مراجعة هذه المجموعة 🎉</h3>
+                  <p className="text-sm text-slate-400">تم حفظ جميع نتائجك وتقدمك في حسابك السحابي تلقائياً</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 max-w-sm mx-auto">
+                  <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20">
+                    <div className="text-2xl font-black text-emerald-500">{sessionStats.correct}</div>
+                    <div className="text-xs font-bold mt-1">توقع صحيح ✅</div>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20">
+                    <div className="text-2xl font-black text-rose-500">{sessionStats.wrong}</div>
+                    <div className="text-xs font-bold mt-1">توقع خاطئ ❌</div>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                  {sessionStats.wrongCards.length > 0 && (
+                    <button
+                      onClick={() => startStudySession(selectedDeck, 'wrong', sessionStats.wrongCards)}
+                      className="px-6 py-3 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-extrabold text-sm shadow-lg shadow-rose-600/20 flex items-center gap-2"
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                      <span>إعادة اختبار الكلمات التي أخطأت فيها فقط ({sessionStats.wrongCards.length}) 🎯</span>
+                    </button>
+                  )}
+
+                  <button
+                    onClick={() => startStudySession(selectedDeck, 'all')}
+                    className="px-5 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm flex items-center gap-2"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                    <span>إعادة المجموعة من البداية</span>
+                  </button>
+
+                  <button
+                    onClick={() => setActiveView('dashboard')}
+                    className="px-5 py-3 rounded-2xl border text-sm font-bold"
+                  >
+                    العودة للرئيسية
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ==========================================
+            4. عرض وتعديل كلمات المجموعة (Edit Deck)
+           ========================================== */}
+        {activeView === 'editDeck' && editingDeck && (
+          <div className={`p-6 rounded-3xl border space-y-6 ${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-xl font-black flex items-center gap-2">
+                <Edit3 className="w-5 h-5 text-emerald-500" />
+                <span>تعديل المجموعة: {editingDeck.title}</span>
+              </h2>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setActiveView('dashboard')}
+                  className="px-4 py-2 rounded-xl border text-sm font-bold"
+                >
+                  إلغاء
+                </button>
+                <button
+                  onClick={handleSaveEditedDeck}
+                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold flex items-center gap-1.5"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>حفظ التعديلات</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold mb-1">عنوان المجموعة</label>
+                <input
+                  type="text"
+                  value={editingDeck.title}
+                  onChange={(e) => setEditingDeck({ ...editingDeck, title: e.target.value })}
+                  className={`w-full px-4 py-2.5 rounded-xl border text-sm font-bold ${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-slate-50 border-slate-200'}`}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold mb-1">بحث سريع داخل الكلمات</label>
+                <div className="relative">
+                  <Search className="w-4 h-4 absolute right-3.5 top-3 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="ابحث بالإنجليزي أو العربي..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className={`w-full pr-10 pl-4 py-2.5 rounded-xl border text-sm ${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-slate-50 border-slate-200'}`}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-between items-center">
+              <span className="text-xs font-bold text-slate-400">عدد الكلمات: {editingDeck.cards?.length || 0}</span>
+              <button
+                onClick={() =>
+                  setEditingDeck({
+                    ...editingDeck,
+                    cards: [
+                      { id: `c_${Date.now()}`, english: '', pos: 'n', arabic: '', status: 'new', correctCount: 0, wrongCount: 0 },
+                      ...(editingDeck.cards || [])
+                    ]
+                  })
+                }
+                className="px-3.5 py-1.5 rounded-xl bg-emerald-500/10 text-emerald-500 text-xs font-bold flex items-center gap-1"
+              >
+                <Plus className="w-4 h-4" />
+                <span>إضافة كلمة جديدة</span>
+              </button>
+            </div>
+
+            <div className="max-h-96 overflow-y-auto space-y-2 pr-1">
+              {(editingDeck.cards || [])
+                .filter(c => 
+                  !searchQuery.trim() || 
+                  c.english.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                  c.arabic.includes(searchQuery)
+                )
+                .map((card, idx) => (
+                  <div key={card.id || idx} className="grid grid-cols-12 gap-2 items-center">
+                    <input
+                      dir="ltr"
+                      type="text"
+                      value={card.english}
+                      onChange={(e) => {
+                        const updated = editingDeck.cards.map(item =>
+                          item.id === card.id ? { ...item, english: e.target.value } : item
+                        );
+                        setEditingDeck({ ...editingDeck, cards: updated });
+                      }}
+                      className={`col-span-5 px-3 py-2 rounded-xl border text-sm font-semibold ${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-slate-50 border-slate-200'}`}
+                    />
+                    <input
+                      dir="ltr"
+                      type="text"
+                      value={card.pos || ''}
+                      onChange={(e) => {
+                        const updated = editingDeck.cards.map(item =>
+                          item.id === card.id ? { ...item, pos: e.target.value } : item
+                        );
+                        setEditingDeck({ ...editingDeck, cards: updated });
+                      }}
+                      className={`col-span-2 px-2 py-2 rounded-xl border text-xs text-center font-mono ${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-slate-50 border-slate-200'}`}
+                    />
+                    <input
+                      dir="rtl"
+                      type="text"
+                      value={card.arabic}
+                      onChange={(e) => {
+                        const updated = editingDeck.cards.map(item =>
+                          item.id === card.id ? { ...item, arabic: e.target.value } : item
+                        );
+                        setEditingDeck({ ...editingDeck, cards: updated });
+                      }}
+                      className={`col-span-4 px-3 py-2 rounded-xl border text-sm font-bold ${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-slate-50 border-slate-200'}`}
+                    />
+                    <button
+                      onClick={() => {
+                        const updated = editingDeck.cards.filter(item => item.id !== card.id);
+                        setEditingDeck({ ...editingDeck, cards: updated });
+                      }}
+                      className="col-span-1 p-2 text-rose-500 hover:bg-rose-500/10 rounded-lg flex justify-center"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+            </div>
+          </div>
+        )}
+
+      </main>
+
+      {/* نافذة إرشادات الاستخدام السحابي الدائم */}
+      {showHostingModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className={`w-full max-w-lg rounded-3xl p-6 space-y-4 border ${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-black flex items-center gap-2">
+                <Cloud className="w-5 h-5 text-emerald-500" />
+                <span>كيف يعمل النظام السحابي الدائم لك ولأصدقائك؟</span>
+              </h3>
+              <button onClick={() => setShowHostingModal(false)} className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="text-sm space-y-3 leading-relaxed opacity-90">
+              <p>
+                <strong>1. حفظ سحابي فوري ودائم:</strong> جميع الحسابات التي تنشئها أنت أو أصدقاؤك وجميع البطاقات والصور المستخرجة تُحفظ مباشرة في قاعدة البيانات السحابية المربوطة بهذا التطبيق.
+              </p>
+              <p>
+                <strong>2. خصوصية 100% لكل حساب:</strong> عندما يسجل صديقك حساباً جديداً باسم مستخدم وكلمة مرور خاصين به، يكون له مساحته الخاصة تماماً ولا تظهر بطاقاتك له ولا بطاقاته لك.
+              </p>
+              <p>
+                <strong>3. قراءة كتب الثانوية العامة:</strong> فقط صوّر أي صفحة من كتاب (المعاصر / Gem / كتاب المدرسة) وارفعها من زر <strong>"تصوير صفحة كتاب (AI)"</strong> ليقوم الذكاء الاصطناعي بتحويلها إلى فلاش كارد فوراً.
+              </p>
+            </div>
+            <div className="pt-2 flex justify-end">
+              <button
+                onClick={() => setShowHostingModal(false)}
+                className="px-5 py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-sm"
+              >
+                فهمت، ممتاز!
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
